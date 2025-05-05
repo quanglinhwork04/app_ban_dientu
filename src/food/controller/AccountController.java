@@ -91,47 +91,43 @@ public class AccountController {
 
 	@RequestMapping(value = "signin", method = RequestMethod.POST)
 	public String signin(ModelMap model, HttpServletResponse response, HttpSession session,
-			@RequestParam("email") String email, @RequestParam("pw") String pw,
-			@RequestParam(value = "rm", defaultValue = "false") boolean rm) {
+	        @RequestParam("email") String email, @RequestParam("pw") String pw,
+	        @RequestParam(value = "rm", defaultValue = "false") boolean rm) {
 
-		boolean isEmail = false;
-		if (email.contains("@"))
-			isEmail = true;
+	    boolean isEmail = email.contains("@");
+	    Account user = isEmail ? accountDAO.findByEmail(email) : accountDAO.findByPhone(email);
 
-		Account user = null;
+	    if (user == null) {
+	        model.addAttribute("message", "Email/SĐT không chính xác!");
+	    } else if (user.getStatus() == 1) {
+	        model.addAttribute("message", "Tài khoản đã bị khoá, vui lòng liên hệ admin để mở khoá");
+	    } else if (!Constants.md5(pw).equals(user.getPassword())) {
+	        model.addAttribute("message", "Mật khẩu không hợp lệ!");
+	    } else {
+	        session.setAttribute("account", user);
 
-		if (isEmail) {
-			user = accountDAO.findByEmail(email);
-		} else {
-			user = accountDAO.findByPhone(email);
-		}
+	        if (rm) {
+	            Cookie ckemail = this.create("email", user.getEmail(), 30);
+	            Cookie ckpass = this.create("pass", pw, 30);
+	            response.addCookie(ckemail);
+	            response.addCookie(ckpass);
+	        } else {
+	            Cookie ckemail = this.create("email", "", 0);
+	            Cookie ckpass = this.create("pass", "", 0);
+	            response.addCookie(ckemail);
+	            response.addCookie(ckpass);
+	        }
 
-		if (user == null) {
-			model.addAttribute("message", "Email/SĐT không chính xác!");
-		} else if (user.getStatus() == 1) {
-			model.addAttribute("message", "Tài khoản đã bị khoá, vui lòng liên hệ admin để mở khoá");
-		} else if (!Constants.md5(pw).equals(user.getPassword())) {
-			model.addAttribute("message", "Mật khẩu không hợp lệ!");
-		} else {
-			System.out.println(pw);
-			session.setAttribute("account", user);
+	        if (user.getName().equalsIgnoreCase("admin")) {
+	            return "admin/index.htm";
+	        } else {
+	            return "redirect:/home.htm";
+	        }
+	    }
 
-			// Ghi nho tai khoan bang cookie
-			if (rm == true) {
-				Cookie ckemail = this.create("email", user.getEmail(), 30);
-				Cookie ckpass = this.create("pass", pw, 30);
-
-				response.addCookie(ckemail);
-				response.addCookie(ckpass);
-
-			} else {
-				this.delete("email");
-				this.delete("pass");
-			}
-			return "redirect:/home.htm";
-		}
-		return "account/signin";
+	    return "account/signin";
 	}
+
 
 	@RequestMapping(value = "signup", method = RequestMethod.GET)
 	public String signup(ModelMap model, HttpSession session) {
